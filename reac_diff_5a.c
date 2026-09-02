@@ -79,8 +79,8 @@ float ran2(long *idum)
 }
 
 // All distribution functions move along their respective velocity vectors (streaming step)
-void bb_per_bc(double *f,double *f_0,int t_cs,int div,int y_s,int l_1,int l_2,int n_cs){
-    int i,j,k;
+void bb_per_bc(double *f,double *f_0,int t_cs,int div,int y_s,size_t l_1,size_t l_2,int n_cs){
+    int j,k;
     for(k=0;k<(2+n_cs)*9;k+=9){
         // Horizontally pointing distributions simply move as a block
         memcpy(&f[(k+1)*t_cs+y_s],&f_0[(k+1)*t_cs],l_2);            // Move f_1s to the right
@@ -112,10 +112,9 @@ void bb_per_bc(double *f,double *f_0,int t_cs,int div,int y_s,int l_1,int l_2,in
 
 // Calculate densities and temperatures
 void calc_dens(double *f,double *rho,double *eps,double *psi,double T_a,double T_b,double *phi,int y_s,
-               int div,int n_cs,int t_cs,int fc_s,int grad,double T_s,double F,double x_fac,int n_ss,int rank,
-               int num_procs,int x_s,double *omega){
+               int div,int n_cs,int t_cs,int n_ss){
     int i,j,k,l;
-    double en_def,T_0,i_rho,x,y,dis;
+    double en_def,i_rho;
     
     // Calculate all densities and internal energies
     for(i=0;i<t_cs;i++){
@@ -128,6 +127,7 @@ void calc_dens(double *f,double *rho,double *eps,double *psi,double T_a,double T
         }
     }
     for(j=0;j<div;j++){
+        // Constant temperature boundaries
         // Upper boundary
         en_def=rho[j*y_s]*(T_b-eps[j*y_s]);
         eps[j*y_s]=T_b;
@@ -142,49 +142,49 @@ void calc_dens(double *f,double *rho,double *eps,double *psi,double T_a,double T
         f[14*t_cs+(j+1)*y_s-1]+=i_6*en_def;        // e_5 direction
         f[15*t_cs+(j+1)*y_s-1]+=i_6*en_def;        // e_6 direction
         
-        //        // Supply and extraction at both boundaries
-        //        // Species S_i & W_i
-        //        for(k=2*n_ss;k<4*n_ss;k++){
-        //            // Upper boundary
-        //            en_def=rho[j*y_s]*(phi[k]-psi[k*t_cs+j*y_s]);
-        //            psi[k*t_cs+j*y_s]=phi[k];
-        //            f[(22+k*9)*t_cs+j*y_s]+=t_3*en_def;         // e_4 direction
-        //            f[(25+k*9)*t_cs+j*y_s]+=i_6*en_def;         // e_7 direction
-        //            f[(26+k*9)*t_cs+j*y_s]+=i_6*en_def;         // e_8 direction
-        //
-        //            // Lower boundary
-        //            en_def=rho[(j+1)*y_s-1]*(phi[k]-psi[k*t_cs+(j+1)*y_s-1]);
-        //            psi[k*t_cs+(j+1)*y_s-1]=phi[k];
-        //            f[(20+k*9)*t_cs+(j+1)*y_s-1]+=t_3*en_def;   // e_2 direction
-        //            f[(23+k*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_5 direction
-        //            f[(24+k*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_6 direction
-        //        }
-        
-        // Vertical flow of chemical free energy
-        for(k=0;k<n_ss;k++){
-            // Lower boundary S_k
-            l=2*n_ss+k;
-            en_def=rho[(j+1)*y_s-1]*(phi[l]-psi[l*t_cs+(j+1)*y_s-1]);
-            psi[l*t_cs+(j+1)*y_s-1]=phi[l];
-            f[(20+l*9)*t_cs+(j+1)*y_s-1]+=t_3*en_def;   // e_2 direction
-            f[(23+l*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_5 direction
-            f[(24+l*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_6 direction
-            
-            // Upper boundary W_k
-            l=3*n_ss+k;
-            en_def=rho[j*y_s]*(phi[l]-psi[l*t_cs+j*y_s]);
-            psi[l*t_cs+j*y_s]=phi[l];
-            f[(22+l*9)*t_cs+j*y_s]+=t_3*en_def;         // e_4 direction
-            f[(25+l*9)*t_cs+j*y_s]+=i_6*en_def;         // e_7 direction
-            f[(26+l*9)*t_cs+j*y_s]+=i_6*en_def;         // e_8 direction
+        // Supply and extraction at both boundaries, keep both boundaries at the respective phi conc's
+        // Species S_i & W_i
+        for(k=2*n_ss;k<4*n_ss;k++){
+            // Upper boundary
+            en_def=rho[j*y_s]*(phi[k]-psi[k*t_cs+j*y_s]);
+            psi[k*t_cs+j*y_s]=phi[k];
+            f[(22+k*9)*t_cs+j*y_s]+=t_3*en_def;         // e_4 direction
+            f[(25+k*9)*t_cs+j*y_s]+=i_6*en_def;         // e_7 direction
+            f[(26+k*9)*t_cs+j*y_s]+=i_6*en_def;         // e_8 direction
+
+            // Lower boundary
+            en_def=rho[(j+1)*y_s-1]*(phi[k]-psi[k*t_cs+(j+1)*y_s-1]);
+            psi[k*t_cs+(j+1)*y_s-1]=phi[k];
+            f[(20+k*9)*t_cs+(j+1)*y_s-1]+=t_3*en_def;   // e_2 direction
+            f[(23+k*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_5 direction
+            f[(24+k*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_6 direction
         }
+        
+        // // Vertical flow of chemical free energy, supply S at lower boundary and extract W at upper boundary
+        // for(k=0;k<n_ss;k++){
+        //     // Upper boundary W_k
+        //     l=3*n_ss+k;
+        //     en_def=rho[j*y_s]*(phi[l]-psi[l*t_cs+j*y_s]);
+        //     psi[l*t_cs+j*y_s]=phi[l];
+        //     f[(22+l*9)*t_cs+j*y_s]+=t_3*en_def;         // e_4 direction
+        //     f[(25+l*9)*t_cs+j*y_s]+=i_6*en_def;         // e_7 direction
+        //     f[(26+l*9)*t_cs+j*y_s]+=i_6*en_def;         // e_8 direction
+             
+        //     // Lower boundary S_k
+        //     l=2*n_ss+k;
+        //     en_def=rho[(j+1)*y_s-1]*(phi[l]-psi[l*t_cs+(j+1)*y_s-1]);
+        //     psi[l*t_cs+(j+1)*y_s-1]=phi[l];
+        //     f[(20+l*9)*t_cs+(j+1)*y_s-1]+=t_3*en_def;   // e_2 direction
+        //     f[(23+l*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_5 direction
+        //     f[(24+l*9)*t_cs+(j+1)*y_s-1]+=i_6*en_def;   // e_6 direction
+        // }
     }
 }
 
 // Now we calculate new momenta and equilibrium distributions at each lattice point
-void eq_dists(double *f,double *f_0,double *rho,double *eps,double *psi,double *u,double *u_sq,int t_cs,int *e_is,int n_cs){
+void eq_dists(double *f,double *f_0,double *rho,double *eps,double *psi,double *u,int t_cs,int *e_is,int n_cs){
     int i,j,k;
-    double l_t,e_du;
+    double l_t,e_du,u_sq;
     
     // Calculate velocity components
     for(i=0;i<t_cs;i++){
@@ -192,12 +192,12 @@ void eq_dists(double *f,double *f_0,double *rho,double *eps,double *psi,double *
         u[i]=l_t*(f[t_cs+i]-f[3*t_cs+i]+f[5*t_cs+i]-f[6*t_cs+i]-f[7*t_cs+i]+f[8*t_cs+i]);
         u[t_cs+i]=l_t*(f[2*t_cs+i]-f[4*t_cs+i]+f[5*t_cs+i]+f[6*t_cs+i]-f[7*t_cs+i]-f[8*t_cs+i]);
         // Calculate new equilibrium distributions
-        u_sq[i]=u[i]*u[i]+u[t_cs+i]*u[t_cs+i];
-        l_t=-1.5*u_sq[i];
-        f_0[i]=f_9*rho[i]*(1+l_t);									// Fluid (rest particles)
-        f_0[9*t_cs+i]=-t_3*rho[i]*eps[i]*u_sq[i];                   // Internal energy (rest particles)
+        u_sq=u[i]*u[i]+u[t_cs+i]*u[t_cs+i];
+        l_t=-1.5*u_sq;
+        f_0[i]=f_9*rho[i]*(1+l_t);							// Fluid (rest particles)
+        f_0[9*t_cs+i]=-t_3*rho[i]*eps[i]*u_sq;              // Internal energy (rest particles)
         for(j=0;j<n_cs;j++){
-            f_0[(j+2)*9*t_cs+i]=f_9*rho[i]*psi[i+j*t_cs];           // Chemical species (rest particles)
+            f_0[(j+2)*9*t_cs+i]=f_9*rho[i]*psi[i+j*t_cs];   // Chemical species (rest particles)
         }
         for(k=1;k<5;k++){
             e_du=e_is[2*k]*u[i]+e_is[2*k+1]*u[t_cs+i];
@@ -219,82 +219,123 @@ void eq_dists(double *f,double *f_0,double *rho,double *eps,double *psi,double *
 // Apply collision step
 void coll_step(double *f,double *f_0,double *u,double *eps,double *psi,double T_0,double i_T_0,int *e_is,double b_g0,
                double i_tau_v,double i_tau_c,double *i_tau_s,double c,int t_cs,double *omega,double *E_f,
-               double *del_H_r,double *A_f,int *stoi,int n_cs,int n_ss,int R){
-    int i,j,k,l,m,n,ind;
+               double *del_H_r,double *A_f,int *stoi,int n_cs,int R){
+    int i,j,k,l;
     double r_F;
     
     for(i=0;i<t_cs;i++){
+        double rate[R];
+		for(j=0;j<R;j++){
+			rate[j]=A_f[j]*exp(-E_f[j]/eps[i]);
+			for(l=0;l<n_cs;l++){
+				int s=stoi[j*n_cs+l];
+				double p=psi[l*t_cs+i],q=1.0;
+				while(s--) q*=p;
+				rate[j]*=q;
+			}
+		}
+
         for(k=0;k<9;k++){
-            // Fluid collisions and buoyancy force
+			// Fluid collisions and buoyancy force
             f[k*t_cs+i]+=f_0[k*t_cs+i]*(i_tau_v+b_g0*i_T_0*(eps[i]-T_0)*c*(e_is[2*k+1]-u[t_cs+i]))-i_tau_v*f[k*t_cs+i];   // Convection on
-            //            f[k*t_cs+i]+=i_tau_v*(f_0[k*t_cs+i]-f[k*t_cs+i]);        // Convection off
-            // Internal energy collisions
-            f[(k+9)*t_cs+i]+=i_tau_c*(f_0[(k+9)*t_cs+i]-f[(k+9)*t_cs+i]);
-            
-            // Chemical species collision
-            for(j=0;j<n_cs;j++){
-                ind=(k+(j+2)*9)*t_cs+i;
-                f[ind]+=i_tau_s[j]*(f_0[ind]-f[ind]);
-            }
-            
-            // Reactions
-            for(j=0;j<R;j++){
-                r_F=A_f[j]*exp(-E_f[j]/eps[i])*omega[k];
-                for(l=0;l<n_cs;l++){
-                    r_F*=pow(psi[l*t_cs+i],stoi[j*n_cs+l]);
-                }
-                // Enthalpy change
-                f[(k+9)*t_cs+i]-=del_H_r[j]*r_F;
-                // Chemical species changes
-                for(l=0;l<n_cs;l++){
-                    f[(k+(l+2)*9)*t_cs+i]-=r_F*(stoi[j*n_cs+l]-stoi[n_cs*R+j*n_cs+l]);
-                }
-            }
-        }
+			// Internal energy collisions
+			f[(k+9)*t_cs+i]+=i_tau_c*(f_0[(k+9)*t_cs+i]-f[(k+9)*t_cs+i]);
+			// Chemical species collision
+			for(j=0;j<n_cs;j++){
+				int ind=(k+(j+2)*9)*t_cs+i;
+				f[ind]+=i_tau_s[j]*(f_0[ind]-f[ind]);
+			}
+			// Reactions
+			for(j=0;j<R;j++){
+				r_F=rate[j]*omega[k];
+				f[(k+9)*t_cs+i]-=del_H_r[j]*r_F;
+				for(l=0;l<n_cs;l++){
+					f[(k+(l+2)*9)*t_cs+i]-=r_F*(stoi[j*n_cs+l]-stoi[n_cs*R+j*n_cs+l]);
+				}
+			}
+		}
     }
 }
 
 int main(int argc, char **argv){
     // Declare constants etc.
-    int i,j,k,t,m,num_procs,rank,div,t_cs,left,right,fc_s=0,grad=0,n_ss=1,c_m=0,n_cs=4*n_ss+c_m,R=6*n_ss,*stoi;
-    int t_end=5e5;
-    int t_int=t_end/500;
-    int x_s=400,y_s=x_s/2;
-    int l_1=(y_s-1)*sizeof(double),l_2,l_3,e_is[18]={0,0,1,0,0,1,-1,0,0,-1,1,1,-1,1,-1,-1,1,-1};
-    double i_nds=1.0/(y_s*x_s),fd=0.03,kl=0.061,Ra=1e4,Pr=0.71,T_s,x_fac,fac=0.1;
-    double T_0=1.5,T_a=T_0,T_b=T_0,i_T_0=1/T_0,c=sqrt(3*T_0),S_B=1e2,per=10e4;
-    T_a=2; T_b=1;
-    double H=y_s*c,E_f[R],A_f[R],del_H_r[R],tau_v=0.6,tau_c=0.5*((tau_v-0.5)/Pr+1),tau_s[n_cs],i_tau_s[n_cs],phi[n_cs];
-    double nu=i_3*(tau_v-0.5)*c*c,chi=t_3*(tau_c-0.5)*c*c,i_tau_v=1/tau_v,i_tau_c=1/tau_c,b_g0=Ra*chi*nu/pow(H,3);
-    double F=Ra*chi*chi*nu/(b_g0*pow(H,4));
-    double *rho,*eps,*psi,*u,*u_sq,*f,*f_0,*u_x_all,*u_y_all,*e_all,*psi_all,omega[9]={f_9,i_9,i_9,i_9,i_9,i_36,i_36,i_36,i_36};
-    char d_out[16],run_st[2];
+    int i,j,k,t,m,num_procs,rank,div,t_cs,left,right;
+    int n_ss=1,n_cs=4*n_ss,R=6*n_ss,*stoi;
+    int t_end=5e4;
+    int t_int=t_end/100;
+    int x_s=128,y_s=x_s/2;
+    int e_is[18]={0,0,1,0,0,1,-1,0,0,-1,1,1,-1,1,-1,-1,1,-1};
+    double fd=0.03,kl=0.061,Pr=0.71,fac=0.1;
+    double Ra=1e3;
+    double T_0=1.0,T_a=T_0,T_b=T_0,i_T_0=1/T_0,c=sqrt(3*T_0),S_B=1e2;
+    fac=0.1;
+    T_a=1.5; T_b=0.5;
+    double H=y_s*c,E_f[R],A_f[R],del_H_r[R],tau_v=0.58,tau_c=0.5*((tau_v-0.5)/Pr+1),tau_s[n_cs],i_tau_s[n_cs],phi[n_cs];
+    double nu=i_3*(tau_v-0.5)*c*c,chi=t_3*(tau_c-0.5)*c*c,i_tau_v=1/tau_v,i_tau_c=1/tau_c,b_g0;
+    if(T_a==T_b){
+        b_g0=0;
+    }
+    else{
+        b_g0=Ra*chi*nu/(pow(H,3)*(T_a-T_b));
+    }
+    // double F=Ra*chi*chi*nu/(b_g0*pow(H,4));
+    double *rho,*eps,*psi,*u,*f_a,*f_b,*f_t,*u_x_all,*u_y_all,*e_all,*psi_all,omega[9]={f_9,i_9,i_9,i_9,i_9,i_36,i_36,i_36,i_36};
     FILE *fout_1;
     
-    MPI_Status status; MPI_Comm Comm_cart; MPI_Init(&argc,&argv); MPI_Comm_size(MPI_COMM_WORLD,&num_procs); MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+    MPI_Status status; 
+    // MPI_Comm Comm_cart; 
+    MPI_Init(&argc,&argv); 
+    MPI_Comm_size(MPI_COMM_WORLD,&num_procs); 
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+
     div=x_s/num_procs; t_cs=div*y_s;
-    seed=-(signed)time(NULL)+pow(rank,2.7);
-    l_2=(div-1)*y_s*sizeof(double);
-    l_3=(n_cs+2)*9*t_cs*sizeof(double);
-    T_s=rank*3.0/num_procs;
-    x_fac=3.0/(x_s-1);
-    
-    left=rank-1; right=rank+1;
-    if(rank==0){left=num_procs-1;}
-    else if(rank==num_procs-1){right=0;}
-    
+    // Check the decomposition is valid: x_s must divide evenly and each block needs >=2 columns
+	if(x_s%num_procs!=0 || div<2){
+		if(rank==0){
+			fprintf(stderr,"Invalid decomposition: x_s=%d must be divisible by num_procs=%d with at least 2 columns per rank (got div=%d)\n",x_s,num_procs,div);
+		}
+		MPI_Abort(MPI_COMM_WORLD,1);
+	}
+
+	left=rank-1;
+	right=rank+1;
+	if(rank==0){
+		left=num_procs-1;
+	}
+	if(rank==num_procs-1){
+		right=0;
+	}
+
+    // seed = -(long)(time(NULL) + 7919L*rank);	// Seed random number generator
+	seed = -12345L - 7919L*rank;				// Seed random number generator (fixed for reproducibility)
+	
+    size_t l_1=(y_s-1)*sizeof(double),l_2,l_3;
+	l_2=(size_t)(div-1)*y_s*sizeof(double);
+	l_3=(size_t)(n_cs+2)*9*t_cs*sizeof(double);
+
     // Assign memory for arrays
-    rho=malloc(t_cs*sizeof(double)); eps=malloc(t_cs*sizeof(double));
-    psi=malloc(n_cs*t_cs*sizeof(double)); psi_all=malloc(n_cs*y_s*x_s*sizeof(double));
-    e_all=malloc(y_s*x_s*sizeof(double));
-    u=malloc(2*t_cs*sizeof(double)); u_sq=malloc(t_cs*sizeof(double));
-    u_x_all=malloc(y_s*x_s*sizeof(double)); u_y_all=malloc(y_s*x_s*sizeof(double));
-    f=malloc((n_cs+2)*9*t_cs*sizeof(double)); f_0=malloc((n_cs+2)*9*t_cs*sizeof(double));
+    rho=malloc(t_cs*sizeof(double)); 
+    eps=malloc(t_cs*sizeof(double));
+    psi=malloc(n_cs*t_cs*sizeof(double)); 
+    u=malloc(2*t_cs*sizeof(double));
+    f_a=malloc((n_cs+2)*9*t_cs*sizeof(double)); f_b=malloc((n_cs+2)*9*t_cs*sizeof(double));
     stoi=malloc(2*n_cs*R*sizeof(int)); memset(stoi,0,2*n_cs*R*sizeof(int));
-    
-    //T_a=T_0-sin(-2.0*pi/per);
-    //T_b=T_0-sin(-2.0*pi/per);
-    
+
+    psi_all=NULL; e_all=NULL; u_x_all=NULL; u_y_all=NULL; fout_1=NULL;
+	if(rank==0){
+        psi_all=malloc(n_cs*y_s*x_s*sizeof(double));
+        e_all=malloc(y_s*x_s*sizeof(double));
+        u_x_all=malloc(y_s*x_s*sizeof(double)); 
+        u_y_all=malloc(y_s*x_s*sizeof(double));
+    }
+	
+	if(eps==NULL||psi==NULL||u==NULL||f_a==NULL||f_b==NULL||stoi==NULL||(rank==0&&(psi_all==NULL||e_all==NULL||u_x_all==NULL||u_y_all==NULL))){
+		fprintf(stderr,"Rank %d: allocation failed\n",rank);
+		MPI_Abort(MPI_COMM_WORLD,2);
+	}
+
+    memset(f_b,0,l_3);
+
     for(i=0;i<n_ss;i++){
         // Stoichiometry
         stoi[i*6*n_cs+2*n_ss+i]=1;              // First row reactants: 1 molecule of S_i in
@@ -321,9 +362,13 @@ int main(int argc, char **argv){
             i_tau_s[j*n_ss+i]=1/tau_s[j*n_ss+i];
         }
         
+        // Boundary concentration for species S_i
+        phi[2*n_ss+i]=S_B;
+        // Boundary concentration for species W_i
+        phi[3*n_ss+i]=0;
+        
         // Reaction rate parameters
         // S_i->A_i
-        phi[2*n_ss+i]=S_B;                      // Boundary concentration for species S_i
         E_f[i*6]=1e-3*T_0;
         A_f[i*6]=fac*fd*exp(E_f[i*6]/T_0)/S_B;
         // A_i->S_i
@@ -331,14 +376,12 @@ int main(int argc, char **argv){
         A_f[i*6+1]=fac*fd*exp(E_f[i*6+1]/T_0);
         
         // A_i+2B_i->3B_i
-        E_f[i*6+2]=1.5;
+        E_f[i*6+2]=0.5;
         A_f[i*6+2]=fac*exp(E_f[i*6+2]/T_0);
         
         // 3B_i->A_i+2B_i
-        A_f[i*6+3]=fac*1e-5;
-        
-        // Delta H=0.025 (endothermic)
         E_f[i*6+3]=E_f[i*6+2];
+        A_f[i*6+3]=fac*1e-5;
         
         //        // Spot species 0
         //        if(i==0){
@@ -357,7 +400,6 @@ int main(int argc, char **argv){
         //        }
         
         // B_i->W_i
-        phi[3*n_ss+i]=0;                        // Boundary concentration for species W_i
         E_f[i*6+4]=1e-3*T_0;
         A_f[i*6+4]=fac*(fd+kl)*exp(E_f[i*6+4]/T_0);
         // W_i->B_i
@@ -370,96 +412,104 @@ int main(int argc, char **argv){
             del_H_r[i*6+2*j+1]=-del_H_r[i*6+2*j];
         }
     }
-    
+
     if(rank==0){
-        //            sprintf(run_st,"%d",m); strcpy(d_out,"opts_reac_");
-        //            strcat(d_out,run_st); strcat(d_out,".txt");
-        //            fout_1=fopen(d_out,"w");
-        fout_1=fopen("opts_reac_1.txt","w");
-        fprintf(fout_1,"%d %d %d %d %d %d %d %d %6.4f %6.4f %d ",y_s,x_s,t_end,t_int,0,0,0,n_cs,tau_v,tau_c,1);
-    }
+		fout_1=fopen("opts_reac_1.txt","w");
+		if(fout_1==NULL){
+			fprintf(stderr,"Rank 0: could not open output file\n");
+			MPI_Abort(MPI_COMM_WORLD,4);
+		}
+		fprintf(fout_1,"%d %d %d %d %d ",y_s,x_s,t_end,t_int,n_cs);
+	}
     
+    // Scatter a few trigger patches per rank
+	int n_patch=3,pr=8;					        // Patches per rank, patch radius
+	int px[n_patch],py[n_patch];
+	for(m=0;m<n_patch;m++){
+		px[m]=(int)(ran2(&seed)*div);			// local x, so patches land in this rank's block
+		py[m]=pr+(int)(ran2(&seed)*(y_s-2*pr));	// keep clear of the walls
+	}
+
     // Set uniform initial density, random temperature of mean T_0 and 0 velocity
     for(i=0;i<t_cs;i++){
-        if(grad==1){
-            eps[i]=(T_s+floor(i/y_s)*x_fac)*(1+0.1*2.0*(ran2(&seed)-0.5));
-        }
-        else{
-            eps[i]=T_0*(1+0.2*2.0*(ran2(&seed)-0.5));
-        }
-        //eps[i]=T_0;
-        
+        eps[i]=T_0*(1+0.2*2.0*(ran2(&seed)-0.5));
+
+        int jl=i/y_s,il=i%y_s;					// local column, row
         for(j=0;j<n_ss;j++){
-            psi[j*t_cs+i]=1-0.01*ran2(&seed);   // Species A_j
-            if(ran2(&seed)<0.05){               // Species B_j
-                psi[(n_ss+j)*t_cs+i]=1;
+            int in_patch=0;
+            for(m=0;m<n_patch;m++){
+                int dx=jl-px[m],dy=il-py[m];
+                if(dx*dx+dy*dy<pr*pr) in_patch=1;
+            }
+            if(in_patch){
+                psi[j*t_cs+i]        =0.50*(1+0.02*2.0*(ran2(&seed)-0.5));	// A
+                psi[(n_ss+j)*t_cs+i] =0.25*(1+0.02*2.0*(ran2(&seed)-0.5));	// B
             }
             else{
-                psi[(n_ss+j)*t_cs+i]=0;
+                psi[j*t_cs+i]        =1.0;
+                psi[(n_ss+j)*t_cs+i] =0.0;
             }
-            
-            //psi[j*t_cs+i]=1;                 // Species A_j
-            //psi[(n_ss+j)*t_cs+i]=1;          // Species B_j
-            
-            psi[(2*n_ss+j)*t_cs+i]=phi[2*n_ss+j];   // Species S_j
-            psi[(3*n_ss+j)*t_cs+i]=phi[3*n_ss+j];   // Species W_j
+            psi[(2*n_ss+j)*t_cs+i]=phi[2*n_ss+j];
+            psi[(3*n_ss+j)*t_cs+i]=phi[3*n_ss+j];
         }
         
         // Set initial distributions, assume equilibrium to start with
-        f[i]=f_9;                                   // Fluid (rest particles)
+        f_a[i]=f_9;                                             // Fluid (rest particles)
         // Internal energy and chemical species
         for(j=1;j<n_cs+2;j++){
-            f[9*j*t_cs+i]=0;
+            f_a[9*j*t_cs+i]=0;
         }
         for(k=1;k<5;k++){
-            f[k*t_cs+i]=i_9;                                // Fluid (particle index k)
-            f[(k+4)*t_cs+i]=i_36;                           // Fluid (particle index k+4)
-            f[(k+9)*t_cs+i]=i_6*eps[i];                     // Internal energy (particle index k)
-            f[(k+13)*t_cs+i]=i_12*eps[i];                   // Internal energy (particle index k+4)
+            f_a[k*t_cs+i]=i_9;                                  // Fluid (particle index k)
+            f_a[(k+4)*t_cs+i]=i_36;                             // Fluid (particle index k+4)
+            f_a[(k+9)*t_cs+i]=i_6*eps[i];                       // Internal energy (particle index k)
+            f_a[(k+13)*t_cs+i]=i_12*eps[i];                     // Internal energy (particle index k+4)
             for(j=0;j<n_cs;j++){
-                f[(9*(j+2)+k)*t_cs+i]=i_6*psi[j*t_cs+i];	// Chemical species (particle index k)
-                f[(9*(j+2)+k+4)*t_cs+i]=i_12*psi[j*t_cs+i];	// Chemical species (particle index k+4)
+                f_a[(9*(j+2)+k)*t_cs+i]=i_6*psi[j*t_cs+i];	    // Chemical species (particle index k)
+                f_a[(9*(j+2)+k+4)*t_cs+i]=i_12*psi[j*t_cs+i];	// Chemical species (particle index k+4)
             }
         }
     }
     
     // Run simulation
     for(t=0;t<=t_end;t++){
-        // Make temporary copies of all fields
-        memcpy(&f_0[0],&f[0],l_3);
         // Streaming step
         for(k=0;k<(2+n_cs)*9;k+=9){
+            int tg=k*10;
             // Exchange leftward moving distributions
-            MPI_Sendrecv(&f_0[(k+3)*t_cs],y_s,MPI_DOUBLE,left,3+10*k,&f[(k+4)*t_cs-y_s],y_s,MPI_DOUBLE,right,3+10*k,MPI_COMM_WORLD,&status);
-            MPI_Sendrecv(&f_0[(k+6)*t_cs],y_s,MPI_DOUBLE,left,6+20*k,&f[(k+7)*t_cs-y_s],y_s,MPI_DOUBLE,right,6+20*k,MPI_COMM_WORLD,&status);
-            MPI_Sendrecv(&f_0[(k+7)*t_cs],y_s,MPI_DOUBLE,left,7+30*k,&f[(k+8)*t_cs-y_s],y_s,MPI_DOUBLE,right,7+30*k,MPI_COMM_WORLD,&status);
+            MPI_Sendrecv(&f_a[(k+3)*t_cs],y_s,MPI_DOUBLE,left,3+tg,&f_b[(k+4)*t_cs-y_s],y_s,MPI_DOUBLE,right,3+tg,MPI_COMM_WORLD,&status);
+            MPI_Sendrecv(&f_a[(k+6)*t_cs],y_s,MPI_DOUBLE,left,6+tg,&f_b[(k+7)*t_cs-y_s],y_s,MPI_DOUBLE,right,6+tg,MPI_COMM_WORLD,&status);
+            MPI_Sendrecv(&f_a[(k+7)*t_cs],y_s,MPI_DOUBLE,left,7+tg,&f_b[(k+8)*t_cs-y_s],y_s,MPI_DOUBLE,right,7+tg,MPI_COMM_WORLD,&status);
             // Exchange rightward moving distributions
-            MPI_Sendrecv(&f_0[(k+2)*t_cs-y_s],y_s,MPI_DOUBLE,right,1+10*k,&f[(k+1)*t_cs],y_s,MPI_DOUBLE,left,1+10*k,MPI_COMM_WORLD,&status);
-            MPI_Sendrecv(&f_0[(k+6)*t_cs-y_s],y_s,MPI_DOUBLE,right,5+20*k,&f[(k+5)*t_cs],y_s,MPI_DOUBLE,left,5+20*k,MPI_COMM_WORLD,&status);
-            MPI_Sendrecv(&f_0[(k+9)*t_cs-y_s],y_s,MPI_DOUBLE,right,8+30*k,&f[(k+8)*t_cs],y_s,MPI_DOUBLE,left,8+30*k,MPI_COMM_WORLD,&status);
+            MPI_Sendrecv(&f_a[(k+2)*t_cs-y_s],y_s,MPI_DOUBLE,right,1+tg,&f_b[(k+1)*t_cs],y_s,MPI_DOUBLE,left,1+tg,MPI_COMM_WORLD,&status);
+            MPI_Sendrecv(&f_a[(k+6)*t_cs-y_s],y_s,MPI_DOUBLE,right,5+tg,&f_b[(k+5)*t_cs],y_s,MPI_DOUBLE,left,5+tg,MPI_COMM_WORLD,&status);
+            MPI_Sendrecv(&f_a[(k+9)*t_cs-y_s],y_s,MPI_DOUBLE,right,8+tg,&f_b[(k+8)*t_cs],y_s,MPI_DOUBLE,left,8+tg,MPI_COMM_WORLD,&status);
             //            // Enforce bounce back on the left and right boundaries
             //            if(rank==0){
-            //                memcpy(&f[(k+1)*t_cs],&f_0[(k+3)*t_cs],y_s*sizeof(double));
-            //                memcpy(&f[(k+5)*t_cs],&f_0[(k+7)*t_cs],y_s*sizeof(double));
-            //                memcpy(&f[(k+8)*t_cs],&f_0[(k+6)*t_cs],y_s*sizeof(double));
+            //                memcpy(&f_b[(k+1)*t_cs],&f_a[(k+3)*t_cs],y_s*sizeof(double));
+            //                memcpy(&f_b[(k+5)*t_cs],&f_a[(k+7)*t_cs],y_s*sizeof(double));
+            //                memcpy(&f_b[(k+8)*t_cs],&f_a[(k+6)*t_cs],y_s*sizeof(double));
             //            }
             //            else if(rank==num_procs-1){
-            //                memcpy(&f[(k+4)*t_cs-y_s],&f_0[(k+2)*t_cs-y_s],y_s*sizeof(double));
-            //                memcpy(&f[(k+8)*t_cs-y_s],&f_0[(k+6)*t_cs-y_s],y_s*sizeof(double));
-            //                memcpy(&f[(k+7)*t_cs-y_s],&f_0[(k+9)*t_cs-y_s],y_s*sizeof(double));
+            //                memcpy(&f_b[(k+4)*t_cs-y_s],&f_a[(k+2)*t_cs-y_s],y_s*sizeof(double));
+            //                memcpy(&f_b[(k+8)*t_cs-y_s],&f_a[(k+6)*t_cs-y_s],y_s*sizeof(double));
+            //                memcpy(&f_b[(k+7)*t_cs-y_s],&f_a[(k+9)*t_cs-y_s],y_s*sizeof(double));
             //            }
         }
         
-        bb_per_bc(f,f_0,t_cs,div,y_s,l_1,l_2,n_cs);                             // Streaming and bounce back on boundaries
-        calc_dens(f,rho,eps,psi,T_a,T_b,phi,y_s,div,n_cs,t_cs,fc_s,grad,        // Calculate all new densities
-                  T_s,F,x_fac,n_ss,rank,num_procs,x_s,omega);
-        eq_dists(f,f_0,rho,eps,psi,u,u_sq,t_cs,e_is,n_cs);                      // Calculate new equilibrium distributions
-        coll_step(f,f_0,u,eps,psi,T_0,i_T_0,e_is,b_g0,i_tau_v,i_tau_c,i_tau_s,  // Collision step
-                  c,t_cs,omega,E_f,del_H_r,A_f,stoi,n_cs,n_ss,R);
+        bb_per_bc(f_b,f_a,t_cs,div,y_s,l_1,l_2,n_cs);                             // Streaming and bounce back on boundaries
         
-        // Adjust temperatures
-        //T_a=T_0-sin(2.0*pi*t/per);
-        //T_b=T_0-sin(2.0*pi*t/per);
+        // Rest populations do not stream, and bb_per_bc never writes them
+		for(k=0;k<(2+n_cs)*9;k+=9){
+            memcpy(&f_b[k*t_cs],&f_a[k*t_cs],t_cs*sizeof(double));
+        }
+
+        f_t=f_a; f_a=f_b; f_b=f_t;
+		
+        calc_dens(f_a,rho,eps,psi,T_a,T_b,phi,y_s,div,n_cs,t_cs,n_ss);       // Calculate all new densities
+        eq_dists(f_a,f_b,rho,eps,psi,u,t_cs,e_is,n_cs);                      // Calculate new equilibrium distributions
+        coll_step(f_a,f_b,u,eps,psi,T_0,i_T_0,e_is,b_g0,i_tau_v,i_tau_c,i_tau_s,  // Collision step
+                  c,t_cs,omega,E_f,del_H_r,A_f,stoi,n_cs,R);
         
         // Gather and print whole array
         if(t%t_int==0){
@@ -471,17 +521,17 @@ int main(int argc, char **argv){
             }
             if(rank==0){
                 for(i=0;i<y_s*x_s;i++){
-                    fprintf(fout_1,"%10.8f ",e_all[i]);
+                    fprintf(fout_1,"%8.6f ",e_all[i]);
                 }
                 for(i=0;i<y_s*x_s;i++){
-                    fprintf(fout_1,"%10.8f ",c*u_x_all[i]);
+                    fprintf(fout_1,"%8.6f ",c*u_x_all[i]);
                 }
                 for(i=0;i<y_s*x_s;i++){
-                    fprintf(fout_1,"%10.8f ",c*u_y_all[i]);
+                    fprintf(fout_1,"%8.6f ",c*u_y_all[i]);
                 }
                 for(j=0;j<n_cs;j++){
                     for(i=0;i<y_s*x_s;i++){
-                        fprintf(fout_1,"%10.8f ",psi_all[j*y_s*x_s+i]);
+                        fprintf(fout_1,"%8.6f ",psi_all[j*y_s*x_s+i]);
                     }
                 }
             }
