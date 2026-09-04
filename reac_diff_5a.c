@@ -113,7 +113,8 @@ void bb_per_bc(double *f,double *f_0,int t_cs,int div,int y_s,size_t l_1,size_t 
 // Calculate densities and temperatures
 void calc_dens(double *f,double *rho,double *eps,double *psi,double T_a,double T_b,double *phi,int y_s,
                int div,int n_cs,int t_cs,int n_ss){
-    int i,j,k,l;
+    int i,j,k;
+    // int l;
     double en_def,i_rho;
     
     // Calculate all densities and internal energies
@@ -238,7 +239,8 @@ void coll_step(double *f,double *f_0,double *u,double *eps,double *psi,double T_
         for(k=0;k<9;k++){
 			// Fluid collisions and buoyancy force
             f[k*t_cs+i]+=f_0[k*t_cs+i]*(i_tau_v+b_g0*i_T_0*(eps[i]-T_0)*c*(e_is[2*k+1]-u[t_cs+i]))-i_tau_v*f[k*t_cs+i];   // Convection on
-			// Internal energy collisions
+            // f[k*t_cs+i]+=i_tau_v*(f_0[k*t_cs+i]-f[k*t_cs+i]);        // Convection off
+            // Internal energy collisions
 			f[(k+9)*t_cs+i]+=i_tau_c*(f_0[(k+9)*t_cs+i]-f[(k+9)*t_cs+i]);
 			// Chemical species collision
 			for(j=0;j<n_cs;j++){
@@ -260,13 +262,14 @@ void coll_step(double *f,double *f_0,double *u,double *eps,double *psi,double T_
 int main(int argc, char **argv){
     // Declare constants etc.
     int i,j,k,t,m,num_procs,rank,div,t_cs,left,right;
-    int n_ss=1,n_cs=4*n_ss,R=6*n_ss,*stoi;
-    int t_end=5e4;
-    int t_int=t_end/100;
-    int x_s=128,y_s=x_s/2;
+    int n_ss=2,n_cs=4*n_ss,R=6*n_ss,*stoi;
+    n_ss=2;
+    int t_end=10e4;
+    int t_int=t_end/200;
+    int x_s=256,y_s=x_s/2;
     int e_is[18]={0,0,1,0,0,1,-1,0,0,-1,1,1,-1,1,-1,-1,1,-1};
     double fd=0.03,kl=0.061,Pr=0.71,fac=0.1;
-    double Ra=1e3;
+    double Ra=1e4;
     double T_0=1.0,T_a=T_0,T_b=T_0,i_T_0=1/T_0,c=sqrt(3*T_0),S_B=1e2;
     fac=0.1;
     T_a=1.5; T_b=0.5;
@@ -306,8 +309,8 @@ int main(int argc, char **argv){
 		right=0;
 	}
 
-    // seed = -(long)(time(NULL) + 7919L*rank);	// Seed random number generator
-	seed = -12345L - 7919L*rank;				// Seed random number generator (fixed for reproducibility)
+    seed = -(long)(time(NULL) + 7919L*rank);	// Seed random number generator
+	// seed = -12345L - 7919L*rank;				// Seed random number generator (fixed for reproducibility)
 	
     size_t l_1=(y_s-1)*sizeof(double),l_2,l_3;
 	l_2=(size_t)(div-1)*y_s*sizeof(double);
@@ -376,28 +379,28 @@ int main(int argc, char **argv){
         A_f[i*6+1]=fac*fd*exp(E_f[i*6+1]/T_0);
         
         // A_i+2B_i->3B_i
-        E_f[i*6+2]=0.5;
+        E_f[i*6+2]=1.0;
         A_f[i*6+2]=fac*exp(E_f[i*6+2]/T_0);
         
         // 3B_i->A_i+2B_i
         E_f[i*6+3]=E_f[i*6+2];
         A_f[i*6+3]=fac*1e-5;
         
-        //        // Spot species 0
-        //        if(i==0){
-        //            // Exothermic
-        //            E_f[i*6+3]=E_f[i*6+2]+0.2;
-        //        }
-        //        // Spot species 1
-        //        else if(i==1){
-        //            // 3B_i->A_i+2B_i
-        //            // Endothermic
-        //            E_f[i*6+3]=E_f[i*6+2]-0.25;
-        //        }
-        //        // Species 2+
-        //        else{
-        //            E_f[i*6+3]=E_f[i*6+2];
-        //        }
+        // Spot species 0
+        if(i==0){
+            // Exothermic
+            E_f[i*6+3]=E_f[i*6+2]+0.02;
+        }
+        // Spot species 1
+        else if(i==1){
+            // 3B_i->A_i+2B_i
+            // Endothermic
+            E_f[i*6+3]=E_f[i*6+2]-0.025;
+        }
+        // // Species 2+
+        // else{
+        //     E_f[i*6+3]=E_f[i*6+2];
+        // }
         
         // B_i->W_i
         E_f[i*6+4]=1e-3*T_0;
@@ -421,13 +424,15 @@ int main(int argc, char **argv){
 		}
 		fprintf(fout_1,"%d %d %d %d %d ",y_s,x_s,t_end,t_int,n_cs);
 	}
-    
-    // Scatter a few trigger patches per rank
-	int n_patch=3,pr=8;					        // Patches per rank, patch radius
-	int px[n_patch],py[n_patch];
-	for(m=0;m<n_patch;m++){
-		px[m]=(int)(ran2(&seed)*div);			// local x, so patches land in this rank's block
-		py[m]=pr+(int)(ran2(&seed)*(y_s-2*pr));	// keep clear of the walls
+
+    // Scatter a few trigger patches per rank, independently for each spot species
+	int n_patch=3,pr=4;
+	int px[n_ss][n_patch],py[n_ss][n_patch];
+	for(j=0;j<n_ss;j++){
+		for(m=0;m<n_patch;m++){
+			px[j][m]=(int)(ran2(&seed)*div);
+			py[j][m]=pr+(int)(ran2(&seed)*(y_s-2*pr));
+		}
 	}
 
     // Set uniform initial density, random temperature of mean T_0 and 0 velocity
@@ -437,10 +442,10 @@ int main(int argc, char **argv){
         int jl=i/y_s,il=i%y_s;					// local column, row
         for(j=0;j<n_ss;j++){
             int in_patch=0;
-            for(m=0;m<n_patch;m++){
-                int dx=jl-px[m],dy=il-py[m];
-                if(dx*dx+dy*dy<pr*pr) in_patch=1;
-            }
+			for(m=0;m<n_patch;m++){
+				int dx=jl-px[j][m],dy=il-py[j][m];
+				if(dx*dx+dy*dy<pr*pr) in_patch=1;
+			}
             if(in_patch){
                 psi[j*t_cs+i]        =0.50*(1+0.02*2.0*(ran2(&seed)-0.5));	// A
                 psi[(n_ss+j)*t_cs+i] =0.25*(1+0.02*2.0*(ran2(&seed)-0.5));	// B
